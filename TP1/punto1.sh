@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while getopts "p:l" opt; do
+while getopts "p:lE" opt; do
 	case $opt in
 		p)
 			tabla=true
@@ -12,6 +12,9 @@ while getopts "p:l" opt; do
 
 		l)
 			listado=true
+		;;
+		E)
+			borrar=true
 		;;
 	esac
 done
@@ -57,6 +60,14 @@ eliminar(){
 	rm "$archivo"
 }
 
+eliminarTodo(){
+	#eliminamos todos los archivos y dispositivos
+	echo "Eliminando todos los dispositivos de loop y sus archivos"
+
+	losetup -D 
+	rm -rf ./archivos
+}
+
 if [ $listado ]; then
 	echo "Seleccione un dispositivo a eliminar (loop y archivo)"
 	select disp in $(losetup -a | cut -d ':' -f 1)
@@ -64,7 +75,8 @@ if [ $listado ]; then
 		eliminar $disp
 		break
 	done
-	
+elif [ $borrar ]; then
+	eliminarTodo	
 else
 	crear
 fi
