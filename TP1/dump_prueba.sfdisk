@@ -1,0 +1,7 @@
+label: dos
+label-id: 0xcdfb22c4
+device: /dev/loop0
+unit: sectors
+sector-size: 512
+
+/dev/loop0p1 : start=          63, size=      204737, type=83
