@@ -1,1 +1,5 @@
 *.iso
+
+**/discos
+**/discos_lvm
+
