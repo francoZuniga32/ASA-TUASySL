@@ -932,4 +932,157 @@ Habilitamos la url de estatus de apache.
 END
 [root@fz# user]#
 ```
+creamos el recurso para el servidor HTTP
+
+```bash
+[root@fz1 user]# pcs resource create PaginaFZ ocf:heartbeat:apache configfile=/etc/httpd/conf/httpd.conf statusurl="http://localhost/server-status" op monitor interval=1min
+[root@fz1 user]#
+```
+verificamos que el servicio este levantado en el segundo nodo.
+
+```bash
+[root@fz2 user]# pcs status
+Cluster name: cluster_franco
+Cluster Summary:
+  * Stack: corosync (Pacemaker is running)
+  * Current DC: fz1 (version 2.1.10-3.el9_8-5693eaeee) - partition with quorum
+  * Last updated: Mon Oct 26 20:16:24 2026 on fz2
+  * Last change:  Mon Oct 26 20:15:46 2026 by root via root on fz1
+  * 2 nodes configured
+  * 2 resource instances configured
+
+Node List:
+  * Online: [ fz1 fz2 ]
+
+Full List of Resources:
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz1
+  * PaginaFZ	(ocf:heartbeat:apache):	 Started fz2
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+[root@fz2 user]#
+```
+
+el problema ahora es la ip flotante, ya que esta esta configurada en el primer nodo. por lo que desde esa ip no llegamos al recurso http.
+
+vamos a cambiar el tiempo en el cual se revisa el tiempo 
+
+```bash
+[root@fz1 user]# pcs resource op defaults
+[root@fz1 user]# pcs resource op defaults update timeout=240s
+Warning: Defaults do not apply to resources which override them with their own defined values
+[root@fz1 user]# pcs resource op defaults
+Meta Attrs: op_defaults-meta_attributes
+  timeout=240s
+[root@fz1 user]#
+```
+
+Ahora tenemos que indicarle al clouster que dos recursos tienen que funcionar juntos.
+
+- colocation: indica cuando un recurso tiene que estar a otro. la idea es indicarle una cantidad con la palabra INFINITY le indicara que tienen que si o si estar juntos, el clouster esta obligado a dejarlos funcionando juntos.
+
+```bash
+[root@fz1 user]# pcs constraint colocation add PaginaFZ with ipflotantefz INFINITY
+[root@fz1 user]# pcs constraint 
+Colocation Constraints:
+  resource 'PaginaFZ' with resource 'ipflotantefz'
+    score=INFINITY
+[root@fz1 user]# pcs status
+Cluster name: cluster_franco
+Cluster Summary:
+  * Stack: corosync (Pacemaker is running)
+  * Current DC: fz1 (version 2.1.10-3.el9_8-5693eaeee) - partition with quorum
+  * Last updated: Mon Oct 26 21:11:42 2026 on fz1
+  * Last change:  Mon Oct 26 21:11:29 2026 by root via root on fz1
+  * 2 nodes configured
+  * 2 resource instances configured
+
+Node List:
+  * Online: [ fz1 fz2 ]
+
+Full List of Resources:
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz1
+  * PaginaFZ	(ocf:heartbeat:apache):	 Started fz1
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+[root@fz1 user]# 
+```
+el orden importa por que el clouster verificara que se puede levantar un recurso y despues lo trabajara con el otro.
+
+desde la otra maquina podemos ver si el sitio esta disponible
+
+```bash
+[root@fz2 user]# wget 10.0.18.142
+--2026-10-26 21:17:44--  http://10.0.18.142/
+Conectando con 10.0.18.142:80... conectado.
+Petición HTTP enviada, esperando respuesta... 200 OK
+Longitud: 50 [text/html]
+Grabando a: «index.html»
+
+index.html                              100%[=============================================================================>]      50  --.-KB/s    en 0s      
+
+2026-10-26 21:17:45 (10,4 MB/s) - «index.html» guardado [50/50]
+[root@fz2 user]# cat index.html 
+ <html>
+ <body>My Test Site - fz1</body>
+ </html>
+[root@fz2 user]# 
+```
+
+probamos detener fz1 para ver como los recursos se migran a la segunda maquina
+
+```bash
+[root@fz1 user]# pcs cluster stop
+Stopping Cluster (pacemaker)...
+Stopping Cluster (corosync)...
+[root@fz1 user]#
+```
+en la segunda maquina verificamos el estado del clouster
+```bash
+[root@fz2 user]# pcs status
+Cluster name: cluster_franco
+Cluster Summary:
+  * Stack: corosync (Pacemaker is running)
+  * Current DC: fz2 (version 2.1.10-3.el9_8-5693eaeee) - partition with quorum
+  * Last updated: Mon Oct 26 21:53:05 2026 on fz2
+  * Last change:  Mon Oct 26 21:11:29 2026 by root via root on fz1
+  * 2 nodes configured
+  * 2 resource instances configured
+
+Node List:
+  * Online: [ fz2 ]
+  * OFFLINE: [ fz1 ]
+
+Full List of Resources:
+  * ipflotantefz        (ocf:heartbeat:IPaddr2):         Started fz2
+  * PaginaFZ    (ocf:heartbeat:apache):  Started fz2
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+[root@fz2 user]# 
+```
+
+tambien tenemos otras restricciones
+- preferencia: cuando decidimos que un nodo es mas preferido para ciertos servicios. por ejemplo por mejores recursos.
+
+tambien podemos moverlo manualmente, tambien llamado switch lover.
+
+```bash
+[root@fz1 user]# pcs resource move PaginaFZ fz1
+Location constraint to move resource 'PaginaFZ' has been created
+Waiting for the cluster to apply configuration changes...
+Location constraint created to move resource 'PaginaFZ' has been removed
+Waiting for the cluster to apply configuration changes...
+resource 'PaginaFZ' is running on node 'fz1'
+[root@fz1 user]# 
+```
+
+lo que hace es agregar una preferencia INFINITY a el nodo objetivo y luego elimina la regla.
 
