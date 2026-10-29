@@ -1086,3 +1086,279 @@ resource 'PaginaFZ' is running on node 'fz1'
 
 lo que hace es agregar una preferencia INFINITY a el nodo objetivo y luego elimina la regla.
 
+### Vamos a replicar los bloques del disco en ambos nodos.
+
+- la idea es que los dos nodos o varios nodos 
+
+instalamos RDBD en ambos nodos
+
+```bash
+[root@fz# user]# rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+[root@fz# user]# dnf install -y https://www.elrepo.org/elrepo-release-9.el9.elrepo.noarch.rpm
+Última comprobación de caducidad de metadatos hecha hace 1:40:29, el mar 27 oct 2026 15:02:49.
+elrepo-release-9.el9.elrepo.noarch.rpm                                                                                                                                                                         20 kB/s |  18 kB     00:00    
+Dependencias resueltas.
+==============================================================================================================================================================================================================================================
+ Paquete                                                    Arquitectura                                       Versión                                                         Repositorio                                               Tam.
+==============================================================================================================================================================================================================================================
+Instalando:
+ elrepo-release                                             noarch                                             9.5-2.el9.elrepo                                                @commandline                                              18 k
+
+Resumen de la transacción
+==============================================================================================================================================================================================================================================
+Instalar  1 Paquete
+
+Tamaño total: 18 k
+Tamaño instalado: 8.3 k
+Descargando paquetes:
+Ejecutando verificación de operación
+Verificación de operación exitosa.
+Ejecutando prueba de operaciones
+Prueba de operación exitosa.
+Ejecutando operación
+  Preparando          :                                                                                                                                                                                                                   1/1 
+  Instalando          : elrepo-release-9.5-2.el9.elrepo.noarch                                                                                                                                                                            1/1 
+  Verificando         : elrepo-release-9.5-2.el9.elrepo.noarch                                                                                                                                                                            1/1 
+
+Instalado:
+  elrepo-release-9.5-2.el9.elrepo.noarch                                                                                                                                                                                                      
+
+¡Listo!
+[root@fz# user]# 
+```
+
+instalamos el modulo del kernel 
+
+```bash
+[root@fz# user]# dnf install -y kmod-drbd9x drbd9x-utils
+
+ELRepo.org Community Enterprise Linux Repository - el9                                                                                                                                                         96 kB/s | 231 kB     00:02    
+Dependencias resueltas.
+==============================================================================================================================================================================================================================================
+ Paquete                                                   Arquitectura                                        Versión                                                              Repositorio                                          Tam.
+==============================================================================================================================================================================================================================================
+Instalando:
+ drbd9x-utils                                              x86_64                                              9.35.0-1.el9.elrepo                                                  elrepo                                              1.0 M
+ kmod-drbd9x                                               x86_64                                              9.3.4-1.el9_8.elrepo                                                 elrepo                                              501 k
+
+Resumen de la transacción
+==============================================================================================================================================================================================================================================
+Instalar  2 Paquetes
+
+Tamaño total de la descarga: 1.5 M
+Tamaño instalado: 5.9 M
+Descargando paquetes:
+(1/2): kmod-drbd9x-9.3.4-1.el9_8.elrepo.x86_64.rpm                                                                                                                                                            295 kB/s | 501 kB     00:01    
+(2/2): drbd9x-utils-9.35.0-1.el9.elrepo.x86_64.rpm                                                                                                                                                            537 kB/s | 1.0 MB     00:01    
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Total                                                                                                                                                                                                         651 kB/s | 1.5 MB     00:02     
+ELRepo.org Community Enterprise Linux Repository - el9                                                                                                                                                        1.6 MB/s | 1.7 kB     00:00    
+La llave GPG de file:///etc/pki/rpm-gpg/RPM-GPG-KEY-elrepo.org (0xBAADAE52) ya se encuentra instalada
+ELRepo.org Community Enterprise Linux Repository - el9                                                                                                                                                        2.8 MB/s | 3.1 kB     00:00    
+Importando llave GPG 0xEAA31D4A:
+ ID usuario: "elrepo.org (RPM Signing Key v2 for elrepo.org) <secure@elrepo.org>"
+ Huella    : B8A7 5587 4DA2 40C9 DAC4 E715 5160 0989 EAA3 1D4A
+ Desde     : /etc/pki/rpm-gpg/RPM-GPG-KEY-v2-elrepo.org
+La llave ha sido importada exitosamente
+Ejecutando verificación de operación
+Verificación de operación exitosa.
+Ejecutando prueba de operaciones
+Prueba de operación exitosa.
+Ejecutando operación
+  Preparando          :                                                                                                                                                                                                                   1/1 
+  Instalando          : kmod-drbd9x-9.3.4-1.el9_8.elrepo.x86_64                                                                                                                                                                           1/2 
+  Ejecutando scriptlet: kmod-drbd9x-9.3.4-1.el9_8.elrepo.x86_64                                                                                                                                                                           1/2 
+  Instalando          : drbd9x-utils-9.35.0-1.el9.elrepo.x86_64                                                                                                                                                                           2/2 
+  Ejecutando scriptlet: drbd9x-utils-9.35.0-1.el9.elrepo.x86_64                                                                                                                                                                           2/2 
+  Ejecutando scriptlet: kmod-drbd9x-9.3.4-1.el9_8.elrepo.x86_64                                                                                                                                                                           2/2 
+  Ejecutando scriptlet: drbd9x-utils-9.35.0-1.el9.elrepo.x86_64                                                                                                                                                                           2/2 
+  Verificando         : drbd9x-utils-9.35.0-1.el9.elrepo.x86_64                                                                                                                                                                           1/2 
+  Verificando         : kmod-drbd9x-9.3.4-1.el9_8.elrepo.x86_64                                                                                                                                                                           2/2 
+
+Instalado:
+  drbd9x-utils-9.35.0-1.el9.elrepo.x86_64                                                                               kmod-drbd9x-9.3.4-1.el9_8.elrepo.x86_64                                                                              
+
+¡Listo!
+[root@fz# user]# 
+```
+
+```bash
+[root@fz# user]# semanage permissive -a drbd_t
+```
+
+agregamos el puerto en el firewall.
+
+```bash
+[root@fz1 user]# firewall-cmd --permanent --add-rich-rule='rule family="ipv4" \
+> source address="10.0.18.118" port port="7789" protocol="tcp" accept'
+success
+[root@fz1 user]# firewall-cmd --reload
+success
+[root@fz1 user]#
+```
+
+En la segunda maquina
+```bash
+[root@fz2 user]# firewall-cmd --permanent --add-rich-rule='rule family="ipv4" \
+> source address="10.0.18.117" port port="7789" protocol="tcp" accept'
+success
+[root@fz2 user]# firewall-cmd --reload
+success
+[root@fz2 user]#
+```
+
+
+creamos la unidad a compartir.
+
+```bash
+[root@fz# user]# lsblk 
+NAME               MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+sr0                 11:0    1 1024M  0 rom  
+vda                252:0    0   32G  0 disk 
+├─vda1             252:1    0    1G  0 part /boot
+└─vda2             252:2    0   31G  0 part 
+  ├─almalinux-root 253:0    0 28,9G  0 lvm  /
+  └─almalinux-swap 253:1    0  2,1G  0 lvm  [SWAP]
+vdb                252:16   0    1G  0 disk 
+[root@fz# user]# pvcreate /dev/vdb
+  Physical volume "/dev/vdb" successfully created.
+[root@fz# user]# vgcreate dbrd /dev/vdb
+  Volume group "drdb" successfully created
+[root@fz# user]# lvcreate -n drdb_fz -l 100%VG dbrd
+  Logical volume "drdb_fz" created.
+[root@fz# user]# lvs
+  LV      VG        Attr       LSize    Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  root    almalinux -wi-ao----   28,86g                                                    
+  swap    almalinux -wi-ao----    2,13g                                                    
+  drdb_fz dbrd      -wi-a----- 1020,00m                                                    
+[root@fz# user]#
+```
+
+```bash
+[root@fz# user]# cat <<END >/etc/drbd.d/wwwdata.res
+resource "wwwdata" {
+  device minor 1;
+  meta-disk internal;
+
+  net {
+    protocol C;
+    allow-two-primaries yes;
+    fencing resource-and-stonith;
+    verify-alg sha1;
+  }
+  handlers {
+    fence-peer "/usr/lib/drbd/crm-fence-peer.9.sh";
+    unfence-peer "/usr/lib/drbd/crm-unfence-peer.9.sh";
+  }
+  on "fz1" {
+    disk "/dev/drdb/drdb_fz";
+    node-id 0;
+  }
+  on "fz2" {
+    disk "/dev/drdb/drdb_fz";
+    node-id 1;
+  }
+  connection {
+    host "fz1" address 10.0.18.117:7789;
+    host "fz2" address 10.0.18.118:7789;
+  }
+}
+END
+```
+
+```bash
+[root@fz# user]# drbdadm create-md wwwdata
+initializing activity log
+initializing bitmap (1024 KB) to all zero
+Writing meta data...
+New drbd meta data block successfully created.
+success
+[root@fz# user]# modprobe drbd
+[root@fz# user]# drbdadm up wwwdat
+```
+
+```bash
+[root@fz1 user]# drbdadm status
+wwwdata role:Secondary
+  disk:Inconsistent open:no
+  fz2 role:Secondary
+    peer-disk:Inconsistent
+
+[root@fz1 user]#
+```
+
+```bash
+[root@fz2 user]# drbdadm status
+wwwdata role:Secondary
+  disk:Inconsistent open:no
+  fz1 role:Secondary
+    peer-disk:Inconsistent
+
+[root@fz2 user]#
+```
+
+Tenemos que seleccionar uno de los nodos como el activo
+
+```bash
+[root@fz1 user]# drbdadm primary --force wwwdata
+[root@fz1 user]# drbdadm status
+wwwdata role:Primary
+  disk:UpToDate open:no
+  fz2 role:Secondary
+    peer-disk:UpToDate
+
+[root@fz1 user]#
+```
+
+```bash
+[root@fz2 user]# drbdadm status
+wwwdata role:Secondary
+  disk:UpToDate open:no
+  fz1 role:Primary
+    peer-disk:UpToDate
+
+[root@fz2 user]#
+```
+
+ahora le vamos a crear un filesystem a dicho disco
+
+```bash
+[root@fz1 user]# mkfs.ext4 /dev/drbd1
+mke2fs 1.46.5 (30-Dec-2021)
+Descartando los bloques del dispositivo: hecho                           
+Se está creando un sistema de ficheros con 261103 bloques de 4k y 65280 nodos-i
+UUID del sistema de ficheros: 21650a15-8fe5-4200-abe1-2d0132b8abef
+Respaldos del superbloque guardados en los bloques: 
+	32768, 98304, 163840, 229376
+
+Reservando las tablas de grupo: hecho                           
+Escribiendo las tablas de nodos-i: hecho                           
+Creando el fichero de transacciones (4096 bloques): hecho
+Escribiendo superbloques y la información contable del sistema de ficheros: hecho
+
+[root@fz1 user]#mount /dev/drbd1 /media
+[root@fz1 user]# df -h
+S.ficheros                 Tamaño Usados  Disp Uso% Montado en
+devtmpfs                     361M      0  361M   0% /dev
+tmpfs                        383M    33M  351M   9% /dev/shm
+tmpfs                        153M    15M  139M  10% /run
+/dev/mapper/almalinux-root    29G   2,9G   26G  10% /
+/dev/vda1                   1014M   366M  649M  37% /boot
+tmpfs                         77M      0   77M   0% /run/user/1000
+/dev/drbd1                   986M    24K  919M   1% /media
+[root@fz1 user]# 
+```
+
+ahora podemos crear un archivo en media para ver como se replica
+```bash
+[root@fz1 user]# cat <<-END >/media/index.html
+ <html>
+  <body>My Test Site - DRBD</body>
+ </html>
+END
+[root@fz1 user]# chcon -R --reference=/var/www/html /media
+[root@fz1 user]# umount /dev/drbd1
+```
+
+>[!IMPORTANT] no hay que utilizar /dev/drdb/drdb_fz por que tenemos que trabajar con drbd que escribira la matadata propia. 
+
