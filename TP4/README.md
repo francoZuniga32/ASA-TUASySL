@@ -32,10 +32,15 @@ architecture-beta
     
     ip:B -- T:server
     server:R -- L:server2
+    
     apache:T -- B:server
     apache2:T -- B:server2
+
     drbd1:T -- B:server
     drbd2:T -- B:server2
+
+    drbd1:R -- L:drbd2
+
 ```
 
 1. configuramos el hostname de cada una de las maquinas
@@ -1125,11 +1130,11 @@ resource 'PaginaFZ' is running on node 'fz1'
 
 lo que hace es agregar una preferencia INFINITY a el nodo objetivo y luego elimina la regla.
 
-### Vamos a replicar los bloques del disco en ambos nodos.
+### Paso 8 - Replicación de bloques usando DRBD
 
-- la idea es que los dos nodos o varios nodos 
+La idea es replicar la inforamcion de la pagina web entre los dos nodos. para esto vamos a usar DRBD. que es un sistema de replicacion de bloques.
 
-instalamos RDBD en ambos nodos
+Instalamos RDBD en ambos nodos
 
 ```bash
 [root@fz# user]# rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
@@ -1220,12 +1225,12 @@ Instalado:
 ¡Listo!
 [root@fz# user]# 
 ```
-
+tenemos que habilitar las politicas de SELinux para que permita el uso de DRBD.
 ```bash
 [root@fz# user]# semanage permissive -a drbd_t
 ```
 
-agregamos el puerto en el firewall.
+habilitamos el puerto en el firewall. En este caso usamos las direcciones IP de las maquinas de cluster.
 
 ```bash
 [root@fz1 user]# firewall-cmd --permanent --add-rich-rule='rule family="ipv4" \
@@ -1246,8 +1251,7 @@ success
 [root@fz2 user]#
 ```
 
-
-creamos la unidad a compartir.
+creamos la unidad a compartir. En este caso vamos a usar un LVM.
 
 ```bash
 [root@fz# user]# lsblk 
@@ -1272,6 +1276,9 @@ vdb                252:16   0    1G  0 disk
   drdb_fz dbrd      -wi-a----- 1020,00m                                                    
 [root@fz# user]#
 ```
+
+Creamos el archivo de configuracion de DRBD, para nuestra web.
+
 
 ```bash
 [root@fz# user]# cat <<END >/etc/drbd.d/wwwdata.res
@@ -1305,7 +1312,9 @@ END
 ```
 
 > [!IMPORTANT]
-> La lidea de facing dont-care es muy importante por que sino cuando probemos un failover el clouster no podra levantar el recurso por que no puede comunicarse con el otro nodo. por lo que tenemos que indicarle que no se preocupe por el otro nodo.
+> La linea de facing dont-care es muy importante por que sino cuando probemos un failover el clouster no podra promocionar al otro nodo. al indicarle esto el nodo no esperar a que el mecanismo de facing apague el nodo caido, sino que promociona directamente el siguiente nodo.
+
+Iniciamos el recurso DRBD.
 
 ```bash
 [root@fz# user]# drbdadm create-md wwwdata
@@ -1361,7 +1370,7 @@ wwwdata role:Secondary
 [root@fz2 user]#
 ```
 
-ahora le vamos a crear un filesystem a dicho disco
+Ahora le vamos a crear un filesystem a dicho disco
 
 ```bash
 [root@fz1 user]# mkfs.ext4 /dev/drbd1
@@ -1403,8 +1412,9 @@ END
 
 > [!IMPORTANT] 
 > no hay que utilizar /dev/drdb/drdb_fz por que tenemos que trabajar con drbd que escribira la matadata propia. 
+> no utilices directamente el dispositivo lvm, por que sobreescibira los metadatos de DRBD.
 
-agregamos a drbd a el clouster.
+Agregamos a drbd a el clouster.
 
 primero tenemos que agregar una restriccion de orden de inicio.
 la ip flotante se tiene que iniciar antes del apache.
@@ -1423,8 +1433,7 @@ Order Constraints:
 [root@fz1 user]#
 ```
 
-
-agregamos el drbd al clouster
+Agregamos el drbd al clouster
 
 ```bash 
 [root@fz1 user]# pcs cluster cib drbd_cfg
@@ -1451,7 +1460,7 @@ CIB updated
 [root@fz2 user]#
 ```
 
-configuramos el filesystem para que se monte en /var/www/html
+Configuramos el filesystem para que se monte en /var/www/html
 
 ```bash
 [root@fz1 user]# pcs cluster cib fs_cfg
