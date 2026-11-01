@@ -1486,3 +1486,89 @@ CIB updated
   * WebFS	(ocf:heartbeat:Filesystem):	 Started fz2
 ```
 
+ahora podemos probar un failover, para esto detenemos el nodo fz2 y verificamos que el recurso se levanta en el nodo fz1.
+
+```bash
+[root@fz1 user]# pcs status
+Cluster name: cluster_franco
+Cluster Summary:
+  * Stack: corosync (Pacemaker is running)
+  * Current DC: fz2 (version 2.1.10-3.el9_8-5693eaeee) - partition with quorum
+  * Last updated: Sun Nov  1 17:55:34 2026 on fz1
+  * Last change:  Sun Nov  1 17:30:22 2026 by root via root on fz2
+  * 2 nodes configured
+  * 5 resource instances configured
+
+Node List:
+  * Node fz1: standby
+  * Online: [ fz2 ]
+
+Full List of Resources:
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz2
+  * PaginaFZ	(ocf:heartbeat:apache):	 Started fz2
+  * Clone Set: WebPagina-clone [WebPagina] (promotable):
+    * Promoted: [ fz2 ]
+    * Stopped: [ fz1 ]
+  * WebFS	(ocf:heartbeat:Filesystem):	 Started fz2
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+[root@fz1 user]# pcs node standby fz2
+[root@fz1 user]# pcs status
+Cluster name: cluster_franco
+Cluster Summary:
+  * Stack: corosync (Pacemaker is running)
+  * Current DC: fz2 (version 2.1.10-3.el9_8-5693eaeee) - partition with quorum
+  * Last updated: Sun Nov  1 17:57:21 2026 on fz1
+  * Last change:  Sun Nov  1 17:57:10 2026 by root via root on fz2
+  * 2 nodes configured
+  * 5 resource instances configured
+
+Node List:
+  * Node fz2: standby
+  * Online: [ fz1 ]
+
+Full List of Resources:
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz1
+  * PaginaFZ	(ocf:heartbeat:apache):	 Started fz1
+  * Clone Set: WebPagina-clone [WebPagina] (promotable):
+    * Promoted: [ fz1 ]
+    * Stopped: [ fz2 ]
+  * WebFS	(ocf:heartbeat:Filesystem):	 Started fz1
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+[root@fz1 user]# pcs node unstandby fz2
+[root@fz1 user]# pcs node standby fz1
+[root@fz1 user]# pcs status
+Cluster name: cluster_franco
+Cluster Summary:
+  * Stack: corosync (Pacemaker is running)
+  * Current DC: fz2 (version 2.1.10-3.el9_8-5693eaeee) - partition with quorum
+  * Last updated: Sun Nov  1 17:58:55 2026 on fz1
+  * Last change:  Sun Nov  1 17:58:04 2026 by root via root on fz1
+  * 2 nodes configured
+  * 5 resource instances configured
+
+Node List:
+  * Node fz1: standby
+  * Online: [ fz2 ]
+
+Full List of Resources:
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz2
+  * PaginaFZ	(ocf:heartbeat:apache):	 Started fz2
+  * Clone Set: WebPagina-clone [WebPagina] (promotable):
+    * Promoted: [ fz2 ]
+    * Stopped: [ fz1 ]
+  * WebFS	(ocf:heartbeat:Filesystem):	 Started fz2
+
+Daemon Status:
+  corosync: active/disabled
+  pacemaker: active/disabled
+  pcsd: active/enabled
+[root@fz1 user]#
+```
