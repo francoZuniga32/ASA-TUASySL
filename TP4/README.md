@@ -1,5 +1,42 @@
 # Trabajo Practico Nro 4.
+
 ## Pasos preliminares
+
+partimos de la siguiente infraestructura:
+
+```mermaid
+architecture-beta
+    group api(cloud)[VMs]
+  
+    service server(server)[10.0.18.117] in api
+    service server2(server)[10.0.18.118] in api
+```
+
+trataremos de llegar a implementar un clouster de alta disponibilidad con dos nodos, en caso de que uno falle el otro pueda seguir funcionando.
+la idea es exponer un servicio web usando apache y una direccion ip que cambie de un nodo a otro en caso de que uno de los nodos la direccion ip a donde apunta la web no cambie.
+
+```mermaid
+architecture-beta
+    group api(cloud)[Cluster]
+  
+    service server(server)[10.0.18.117] in api
+    service server2(server)[10.0.18.118] in api
+    service ip(internet)[10.0.18.142] in api
+    service apache(cloud)[apache] in api
+    service apache2(cloud)[apache2] in api
+    service drbd1(disk)[rbdr1] in api
+    service drbd2(disk)[rdbr2] in api
+
+    align column ip server apache drbd1
+    align column server2 apache2 drbd2
+    
+    ip:B -- T:server
+    server:R -- L:server2
+    apache:T -- B:server
+    apache2:T -- B:server2
+    drbd1:T -- B:server
+    drbd2:T -- B:server2
+```
 
 1. configuramos el hostname de cada una de las maquinas
 
@@ -355,7 +392,8 @@ passwd: todos los tokens de autenticación se actualizaron exitosamente.
 
 ### Configuracion de corosync
 
-> [!IMPORTANT] tiene que configugrar nombres para las direcciones ip de los nodos.
+> [!IMPORTANT] 
+> tiene que configugrar nombres para las direcciones ip de los nodos.
 > configure el archivo `/etc/hosts` agregando las direcciones IP y el nombre como se llamara cada nodo.
 
 en cualquiera de los dos hostings en mi caso fz1.
@@ -910,7 +948,8 @@ success
 [root@fz# user]#
 ```
 
-> [!IMPORTANT] La idea es que no habilitemos el httpd para poder levantarlo al inicio, por que el clouster tiene que manejarlo.
+> [!IMPORTANT] 
+> La idea es que no habilitemos el httpd para poder levantarlo al inicio, por que el clouster tiene que manejarlo.
 
 Creamos una web sencilla
 ```bash
@@ -1242,8 +1281,7 @@ resource "wwwdata" {
 
   net {
     protocol C;
-    allow-two-primaries yes;
-    fencing resource-and-stonith;
+    fencing dont-care;
     verify-alg sha1;
   }
   handlers {
@@ -1265,6 +1303,9 @@ resource "wwwdata" {
 }
 END
 ```
+
+> [!IMPORTANT]
+> La lidea de facing dont-care es muy importante por que sino cuando probemos un failover el clouster no podra levantar el recurso por que no puede comunicarse con el otro nodo. por lo que tenemos que indicarle que no se preocupe por el otro nodo.
 
 ```bash
 [root@fz# user]# drbdadm create-md wwwdata
@@ -1360,5 +1401,79 @@ END
 [root@fz1 user]# umount /dev/drbd1
 ```
 
->[!IMPORTANT] no hay que utilizar /dev/drdb/drdb_fz por que tenemos que trabajar con drbd que escribira la matadata propia. 
+> [!IMPORTANT] 
+> no hay que utilizar /dev/drdb/drdb_fz por que tenemos que trabajar con drbd que escribira la matadata propia. 
+
+agregamos a drbd a el clouster.
+
+primero tenemos que agregar una restriccion de orden de inicio.
+la ip flotante se tiene que iniciar antes del apache.
+
+```bash
+[root@fz1 user]# pcs constraint order ipflotantefz then PaginaFZ
+Adding ipflotantefz PaginaFZ (kind: Mandatory) (Options: first-action=start then-action=start)
+[root@fz1 user]# pcs constraint 
+Location Constraints:
+  resource 'PaginaFZ' prefers node 'fz1' with score 50
+Colocation Constraints:
+  resource 'PaginaFZ' with resource 'ipflotantefz'
+    score=INFINITY
+Order Constraints:
+  start resource 'ipflotantefz' then start resource 'PaginaFZ'
+[root@fz1 user]#
+```
+
+
+agregamos el drbd al clouster
+
+```bash 
+[root@fz1 user]# pcs cluster cib drbd_cfg
+[root@fz1 user]# pcs -f drbd_cfg resource create WebPagina ocf:linbit:drbd \
+     drbd_resource=wwwdata op monitor interval=29s role=Promoted \
+     monitor interval=31s role=Unpromoted
+[root@fz1 user]# pcs -f drbd_cfg resource
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz1
+  *   	(ocf:heartbeat:apache):	 Started fz1
+  * WebPagina	(ocf:linbit:drbd):	 Stopped
+[root@fz1 user]# pcs -f drbd_cfg resource promotable WebPagina \
+     promoted-max=1 promoted-node-max=1 clone-max=2 clone-node-max=1 \
+     notify=true
+Deprecation Warning: configuring meta attributes without specifying the 'meta' keyword is deprecated and will be removed in a future release
+[root@fz1 user]# pcs cluster cib-push drbd_cfg --config
+CIB updated
+[root@fz2 user]# pcs resource status
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz2
+  * PaginaFZ	(ocf:heartbeat:apache):	 Started fz2
+  * Clone Set: WebPagina-clone [WebPagina] (promotable):
+    * Promoted: [ fz2 ]
+    * Unpromoted: [ fz1 ]
+  * WebFS	(ocf:heartbeat:Filesystem):	 Started fz2
+[root@fz2 user]#
+```
+
+configuramos el filesystem para que se monte en /var/www/html
+
+```bash
+[root@fz1 user]# pcs cluster cib fs_cfg
+[root@fz1 user]# pcs -f fs_cfg resource create WebFS Filesystem \
+    device="/dev/drbd1" directory="/var/www/html" fstype="xfs"
+Assumed agent name 'ocf:heartbeat:Filesystem' (deduced from 'Filesystem')
+[root@fz1 user]# pcs -f fs_cfg constraint colocation add \
+    WebFS with Promoted WebPagina-clone
+[root@fz1 user]# pcs -f fs_cfg constraint order \
+    promote WebPagina-clone then start WebFS
+Adding WebPagina-clone WebFS (kind: Mandatory) (Options: first-action=promote then-action=start)
+[root@fz1 user]# pcs -f fs_cfg constraint colocation add PaginaFZ with WebFS
+[root@fz1 user]# pcs -f fs_cfg constraint order WebFS then PaginaFZ
+Adding WebFS PaginaFZ (kind: Mandatory) (Options: first-action=start then-action=start)
+[root@fz1 user]# pcs cluster cib-push fs_cfg --config
+CIB updated
+[root@fz2 user]# pcs resource status
+  * ipflotantefz	(ocf:heartbeat:IPaddr2):	 Started fz2
+  * PaginaFZ	(ocf:heartbeat:apache):	 Started fz2
+  * Clone Set: WebPagina-clone [WebPagina] (promotable):
+    * Promoted: [ fz2 ]
+    * Unpromoted: [ fz1 ]
+  * WebFS	(ocf:heartbeat:Filesystem):	 Started fz2
+```
 
